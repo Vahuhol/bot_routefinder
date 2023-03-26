@@ -6,34 +6,21 @@ from osmnx import settings
 
 from geopy.geocoders import Nominatim
 
+import io
+from PIL import Image
+
 
 class MapWorker:
-    def __init__(self, start_location, end_location, region):
+    def __init__(self, start_location: dict, end_location: str, region: str = 'Екатеринбург'):
         settings.log_console = True
         settings.use_cache = True
-
-        self.locator = Nominatim(user_agent='lol')
-        self.start_location = self.calculate_location(start_location)
-        self.end_location = self.calculate_location(end_location)
         self.region = region
+        self.locator = Nominatim(user_agent='lol')
+        self.start_location = start_location['latitude'], start_location['longitude']
+        self.end_location = self.calculate_location(end_location)
         self.mode = 'walk'  # 'drive', 'bike', 'walk'
         self.optimizer = 'time'  # 'length', 'time'
         self.graph = self.calculate_graph()
-
-    def set_start_location(self, new_location):
-        self.start_location = new_location
-
-    def set_end_location(self, new_location):
-        self.end_location = new_location
-
-    def set_mode(self, new_mode):
-        self.mode = new_mode
-
-    def set_optimizer(self, new_optimizer):
-        self.optimizer = new_optimizer
-
-    def set_region(self, new_region):
-        self.region = new_region
 
     def calculate_graph(self):
         return ox.graph_from_place(self.region, network_type=self.mode)
@@ -74,19 +61,26 @@ class MapWorker:
         )
         start_marker.add_to(shortest_route_map)
         end_marker.add_to(shortest_route_map)
-
         return shortest_route_map
 
     def calculate_location(self, location):
-        location_coordinates = self.locator.geocode(location)
+        location_coordinates = self.locator.geocode(f'{self.region} {location}')
         return location_coordinates.latitude, location_coordinates.longitude
+
+    @staticmethod
+    def save_plot_as_image(plot: folium.Map, path: str = 'res') -> Image:
+        img_data = plot._to_png(5)
+        img = Image.open(io.BytesIO(img_data))
+        img.save(f'{path}/map.png')
+        return img
 
 
 if __name__ == '__main__':
-    start_location = 'площадь 1905 года'
+    start_location = {"latitude": 56.894878, "longitude": 60.587989}
     region = 'Екатеринбург'
-    end_location = 'Екатеринбургский государственный академический театр оперы и балета'
+    end_location = f'{region} 40-летия Октября, 75'
     mw = MapWorker(start_location, end_location, region)
+    print(mw.calculate_location(end_location))
     plot = mw.get_plot()
-    plot.save('map.html')
+    mw.save_plot_as_image(plot, path='')
     plot.show_in_browser()
